@@ -1,1 +1,43 @@
-# test1
+trigger:
+- main
+
+pool:
+  name: aks-agent-pool
+  demands: Agent.OS -equals Linux
+
+steps:
+- script: |
+    #!/bin/bash
+
+    ORG_NAME="Sinc"
+    RULESET_ID="5818224"
+    CSV_FILE="repos.csv"
+
+
+    apply_ruleset() {
+        local repo_name="$1"
+        echo "Applying ruleset to $repo_name..."
+
+        curl -s -X POST "https://api.github.com/orgs/$ORG_NAME/rulesets/$RULESET_ID/repositories" \
+            -H "Authorization: Bearer $(TOKEN)" \
+            -H "Accept: application/vnd.github+json" \
+            -d "{\"repository_ids\": [\"$(get_repo_id $repo_name)\"]}"
+    }
+
+
+    get_repo_id() {
+        local repo_name="$1"
+        curl -s -H "Authorization: Bearer $(TOKEN)" \
+            "https://api.github.com/repos/$ORG_NAME/$repo_name" | jq '.id'
+    }
+
+
+    if ! command -v jq &> /dev/null; then
+        echo "This script requires 'jq' (a JSON processor). Please install it first."
+        exit 1
+    fi
+
+
+    tail -n +2 "$CSV_FILE" | while IFS=, read -r repo_name; do
+        apply_ruleset "$repo_name"
+    done
